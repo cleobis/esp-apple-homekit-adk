@@ -29,8 +29,12 @@
 
 #include "App.h"
 #include "DB.h"
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "driver/gpio.h"
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define GPIO_OUTPUT_IO_0    32
+#define GPIO_OUTPUT_IO_1    33
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<GPIO_OUTPUT_IO_0) | (1ULL<<GPIO_OUTPUT_IO_1))
 /**
  * Domain used in the key value store for application data.
  *
@@ -169,6 +173,9 @@ HAPError HandleLightBulbOnWrite(
     if (accessoryConfiguration.state.lightBulbOn != value) {
         accessoryConfiguration.state.lightBulbOn = value;
 
+        gpio_set_level(GPIO_OUTPUT_IO_0, value);
+        gpio_set_level(GPIO_OUTPUT_IO_1, value);
+
         SaveAccessoryState();
 
         HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
@@ -194,6 +201,17 @@ void AppCreate(HAPAccessoryServerRef* server, HAPPlatformKeyValueStoreRef keyVal
     HAPPrecondition(keyValueStore);
 
     HAPLogInfo(&kHAPLog_Default, "%s", __func__);
+    
+    // Set-up output
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    io_conf.pull_down_en = 0;
+    io_conf.pull_up_en = 0;
+    gpio_config(&io_conf);
+    gpio_set_level(GPIO_OUTPUT_IO_0, 0);
+    gpio_set_level(GPIO_OUTPUT_IO_1, 0);
 
     HAPRawBufferZero(&accessoryConfiguration, sizeof accessoryConfiguration);
     accessoryConfiguration.server = server;
