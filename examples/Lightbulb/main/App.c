@@ -31,6 +31,9 @@
 #include "DB.h"
 
 #include "driver/gpio.h"
+#include "esp_sntp.h"
+#include "time.h"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #define GPIO_OUTPUT_IO_0    32
 #define GPIO_OUTPUT_IO_1    33
@@ -359,6 +362,11 @@ void AppCreate(HAPAccessoryServerRef* server, HAPPlatformKeyValueStoreRef keyVal
     gpio_set_level(GPIO_OUTPUT_IO_0, 0);
     gpio_set_level(GPIO_OUTPUT_IO_1, 0);
 
+    // Set-up time server
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_init();
+    
     HAPRawBufferZero(&accessoryConfiguration, sizeof accessoryConfiguration);
     accessoryConfiguration.server = server;
     accessoryConfiguration.keyValueStore = keyValueStore;
