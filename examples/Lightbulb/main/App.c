@@ -51,12 +51,23 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+static const HAPLogObject logObject = { .subsystem = NULL, .category = NULL };
+
 /**
  * Global accessory configuration.
  */
+const uint8_t STATE_VERSION = 1;
 typedef struct {
     struct {
+        uint8_t version;
+
         bool lightBulbOn;
+
+        bool fanActiveManual;
+        bool fanActiveAuto;
+        uint8_t fanTargetState;
+        uint8_t fanTimeoutMinutes;
+        uint8_t fanDutyCycle;
     } state;
     HAPAccessoryServerRef* server;
     HAPPlatformKeyValueStoreRef keyValueStore;
@@ -91,11 +102,15 @@ static void LoadAccessoryState(void) {
         HAPAssert(err == kHAPError_Unknown);
         HAPFatalError();
     }
-    if (!found || numBytes != sizeof accessoryConfiguration.state) {
+    if (!found || numBytes != sizeof accessoryConfiguration.state || accessoryConfiguration.state.version != STATE_VERSION) {
         if (found) {
             HAPLogError(&kHAPLog_Default, "Unexpected app state found in key-value store. Resetting to default.");
         }
         HAPRawBufferZero(&accessoryConfiguration.state, sizeof accessoryConfiguration.state);
+        accessoryConfiguration.state.version = STATE_VERSION;
+        accessoryConfiguration.state.fanTargetState = kHAPCharacteristicValue_TargetFanState_Manual;
+        accessoryConfiguration.state.fanDutyCycle = 10;
+        accessoryConfiguration.state.fanTimeoutMinutes = 60;
     }
 }
 
@@ -127,16 +142,17 @@ static void SaveAccessoryState(void) {
  */
 static HAPAccessory accessory = { .aid = 1,
                                   .category = kHAPAccessoryCategory_Lighting,
-                                  .name = "Acme Light Bulb",
-                                  .manufacturer = "Acme",
-                                  .model = "LightBulb1,1",
-                                  .serialNumber = "099DB48E9E28",
-                                  .firmwareVersion = "1",
+                                  .name = "ESP32 Thermostat",
+                                  .manufacturer = "Cleobis",
+                                  .model = "Thermostat1,1",
+                                  .serialNumber = "0001",
+                                  .firmwareVersion = "5",
                                   .hardwareVersion = "1",
                                   .services = (const HAPService* const[]) { &accessoryInformationService,
                                                                             &hapProtocolInformationService,
                                                                             &pairingService,
                                                                             &lightBulbService,
+                                                                            &furnaceFanService,
                                                                             NULL },
                                   .callbacks = { .identify = IdentifyAccessory } };
 
@@ -147,7 +163,7 @@ HAPError IdentifyAccessory(
         HAPAccessoryServerRef* server HAP_UNUSED,
         const HAPAccessoryIdentifyRequest* request HAP_UNUSED,
         void* _Nullable context HAP_UNUSED) {
-    HAPLogInfo(&kHAPLog_Default, "%s", __func__);
+    HAPLog(&logObject, "%s", __func__);
     return kHAPError_None;
 }
 
@@ -158,7 +174,7 @@ HAPError HandleLightBulbOnRead(
         bool* value,
         void* _Nullable context HAP_UNUSED) {
     *value = accessoryConfiguration.state.lightBulbOn;
-    HAPLogInfo(&kHAPLog_Default, "%s: %s", __func__, *value ? "true" : "false");
+    HAPLog(&logObject, "%s: %s", __func__, *value ? "true" : "false");
 
     return kHAPError_None;
 }
@@ -169,7 +185,7 @@ HAPError HandleLightBulbOnWrite(
         const HAPBoolCharacteristicWriteRequest* request,
         bool value,
         void* _Nullable context HAP_UNUSED) {
-    HAPLogInfo(&kHAPLog_Default, "%s: %s", __func__, value ? "true" : "false");
+    HAPLog(&logObject, "%s: %s", __func__, value ? "true" : "false");
     if (accessoryConfiguration.state.lightBulbOn != value) {
         accessoryConfiguration.state.lightBulbOn = value;
 
@@ -186,12 +202,142 @@ HAPError HandleLightBulbOnWrite(
 
 //----------------------------------------------------------------------------------------------------------------------
 
+void UpdateOutputs() {
+    
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanActiveOnRead(
+        HAPAccessoryServerRef* server HAP_UNUSED,
+        const HAPUInt8CharacteristicReadRequest* request HAP_UNUSED,
+        uint8_t* value,
+        void* _Nullable context HAP_UNUSED) {
+    *value = accessoryConfiguration.state.fanActiveAuto || accessoryConfiguration.state.fanActiveManual;
+    HAPLog(&logObject, "%s: %s", __func__, *value ? "true" : "false");
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanActiveOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context HAP_UNUSED) {
+    HAPLog(&logObject, "%s: %s", __func__, value ? "true" : "false");
+
+    bool oldValue = accessoryConfiguration.state.fanActiveManual;
+    bool oldEffectiveValue = oldValue || accessoryConfiguration.state.fanActiveAuto;
+    bool newEffectiveValue = value || accessoryConfiguration.state.fanActiveAuto;
+    if (oldValue != value) {
+        accessoryConfiguration.state.fanActiveManual = value;
+        SaveAccessoryState();
+    }
+    if (oldEffectiveValue != newEffectiveValue) {
+        UpdateOutputs();
+        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+    }
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTargetFanStateOnRead(
+        HAPAccessoryServerRef* server HAP_UNUSED,
+        const HAPUInt8CharacteristicReadRequest* request HAP_UNUSED,
+        uint8_t* value,
+        void* _Nullable context HAP_UNUSED) {
+    *value = accessoryConfiguration.state.fanTargetState;
+    HAPLog(&logObject, "%s: %u", __func__, *value);
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTargetFanStateOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context HAP_UNUSED) {
+    HAPLog(&logObject, "%s: %u", __func__, value);
+
+    if (accessoryConfiguration.state.fanTargetState != value) {
+        accessoryConfiguration.state.fanTargetState = value;
+        SaveAccessoryState();
+        UpdateOutputs();
+        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+    }
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTimeoutOnRead(
+        HAPAccessoryServerRef* server HAP_UNUSED,
+        const HAPUInt8CharacteristicReadRequest* request HAP_UNUSED,
+        uint8_t* value,
+        void* _Nullable context HAP_UNUSED) {
+    *value = accessoryConfiguration.state.fanTimeoutMinutes;
+    HAPLog(&logObject, "%s: %u", __func__, *value);
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTimeoutOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context HAP_UNUSED) {
+    HAPLog(&logObject, "%s: %u", __func__, value);
+
+    if (accessoryConfiguration.state.fanTimeoutMinutes != value) {
+        accessoryConfiguration.state.fanTimeoutMinutes = value;
+        SaveAccessoryState();
+        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+    }
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanDutyCycleOnRead(
+        HAPAccessoryServerRef* server HAP_UNUSED,
+        const HAPUInt8CharacteristicReadRequest* request HAP_UNUSED,
+        uint8_t* value,
+        void* _Nullable context HAP_UNUSED) {
+    *value = accessoryConfiguration.state.fanDutyCycle;
+    HAPLog(&logObject, "%s: %u", __func__, *value);
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanDutyCycleOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context HAP_UNUSED) {
+    HAPLog(&logObject, "%s: %u", __func__, value);
+
+    if (accessoryConfiguration.state.fanDutyCycle != value) {
+        accessoryConfiguration.state.fanDutyCycle = value;
+        SaveAccessoryState();
+        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+    }
+
+    return kHAPError_None;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+
+
 void AccessoryNotification(
         const HAPAccessory* accessory,
         const HAPService* service,
         const HAPCharacteristic* characteristic,
         void* ctx) {
-    HAPLogInfo(&kHAPLog_Default, "Accessory Notification");
+    HAPLogInfo(&logObject, "Accessory Notification");
 
     HAPAccessoryServerRaiseEvent(accessoryConfiguration.server, characteristic, service, accessory);
 }
@@ -200,8 +346,8 @@ void AppCreate(HAPAccessoryServerRef* server, HAPPlatformKeyValueStoreRef keyVal
     HAPPrecondition(server);
     HAPPrecondition(keyValueStore);
 
-    HAPLogInfo(&kHAPLog_Default, "%s", __func__);
-    
+    HAPLogInfo(&logObject, "%s", __func__);
+
     // Set-up output
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;

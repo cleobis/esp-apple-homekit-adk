@@ -62,6 +62,12 @@ extern const HAPService lightBulbService;
  */
 extern const HAPBoolCharacteristic lightBulbOnCharacteristic;
 
+/**
+ * Furnace fan service.
+ */
+extern const HAPService furnaceFanService;
+
+
 #if __has_feature(nullability)
 #pragma clang assume_nonnull end
 #endif

@@ -51,6 +51,89 @@ HAPError HandleLightBulbOnWrite(
         const HAPBoolCharacteristicWriteRequest* request,
         bool value,
         void* _Nullable context);
+//-------------------------------------------------------------------------------------------------------
+/**
+ * Handle read request to the 'Active' characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanActiveOnRead(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicReadRequest* request,
+        uint8_t* value,
+        void* _Nullable context);
+
+/**
+ * Handle write request to the 'Active' characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanActiveOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context);
+
+/**
+ * Handle read request to the 'Target Fan State' characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTargetFanStateOnRead(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicReadRequest* request,
+        uint8_t* value,
+        void* _Nullable context);
+
+/**
+ * Handle write request to the 'Target Fan State' characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTargetFanStateOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context);
+
+/**
+ * Handle read request to the 'Timeout' custom characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTimeoutOnRead(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicReadRequest* request,
+        uint8_t* value,
+        void* _Nullable context);
+
+/**
+ * Handle write request to the 'Timeout' custom characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanTimeoutOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context);
+
+/**
+ * Handle read request to the 'Duty cycle' custom characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanDutyCycleOnRead(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicReadRequest* request,
+        uint8_t* value,
+        void* _Nullable context);
+
+/**
+ * Handle write request to the 'Duty cycle' custom characteristic of the furnace fan service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleFurnaceFanDutyCycleOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context);
+
+//-------------------------------------------------------------------------------------------------------
+
 
 /**
  * Initialize the application.
