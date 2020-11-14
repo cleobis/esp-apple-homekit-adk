@@ -35,9 +35,9 @@
 #include "time.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define GPIO_OUTPUT_IO_0    32
-#define GPIO_OUTPUT_IO_1    33
-#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<GPIO_OUTPUT_IO_0) | (1ULL<<GPIO_OUTPUT_IO_1))
+#define GPIO_OUTPUT_IO_FURNACE_FAN    32
+#define GPIO_OUTPUT_IO_HRV    33
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<GPIO_OUTPUT_IO_FURNACE_FAN) | (1ULL<<GPIO_OUTPUT_IO_HRV))
 /**
  * Domain used in the key value store for application data.
  *
@@ -71,6 +71,9 @@ typedef struct {
         uint8_t fanTargetState;
         uint8_t fanTimeoutMinutes;
         uint8_t fanDutyCycle;
+
+        bool hrvActive;
+        uint8_t hrvTargetState;
     } state;
     HAPAccessoryServerRef* server;
     HAPPlatformKeyValueStoreRef keyValueStore;
@@ -156,6 +159,7 @@ static HAPAccessory accessory = { .aid = 1,
                                                                             &pairingService,
                                                                             &lightBulbService,
                                                                             &furnaceFanService,
+                                                                            &hrvService,
                                                                             NULL },
                                   .callbacks = { .identify = IdentifyAccessory } };
 
@@ -191,9 +195,16 @@ HAPError HandleLightBulbOnWrite(
     HAPLog(&logObject, "%s: %s", __func__, value ? "true" : "false");
     if (accessoryConfiguration.state.lightBulbOn != value) {
         accessoryConfiguration.state.lightBulbOn = value;
+        gpio_set_level(GPIO_OUTPUT_IO_FURNACE_FAN, value);
+        gpio_set_level(GPIO_OUTPUT_IO_HRV, value);
 
-        gpio_set_level(GPIO_OUTPUT_IO_0, value);
-        gpio_set_level(GPIO_OUTPUT_IO_1, value);
+        SaveAccessoryState();
+
+        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+    }
+
+    return kHAPError_None;
+}
 
         SaveAccessoryState();
 
@@ -205,9 +216,39 @@ HAPError HandleLightBulbOnWrite(
 
 //----------------------------------------------------------------------------------------------------------------------
 
-void UpdateOutputs() {
-    
+void UpdateOutputsAndNotify() {
+    static bool fanActiveCache;
+    static bool hrvActiveCache;
+
+    bool fanActiveNew = accessoryConfiguration.state.fanActiveManual
+        || accessoryConfiguration.state.fanActiveAuto;
+    bool hrvActiveNew = accessoryConfiguration.state.hrvActive
+        || (accessoryConfiguration.state.fanActiveAuto 
+            && (accessoryConfiguration.state.hrvTargetState == kHAPCharacteristicValue_TargetFanState_Auto));
+
+    gpio_set_level(GPIO_OUTPUT_IO_FURNACE_FAN, fanActiveNew);
+    gpio_set_level(GPIO_OUTPUT_IO_HRV, hrvActiveNew);
+
+    if (fanActiveNew != fanActiveCache) {
+        HAPLog(&logObject, "Setting fan %s. Manual demand = %s. Auto demand = %s.", 
+            fanActiveNew ? "on" : "off", 
+            accessoryConfiguration.state.fanActiveManual ? "true" : "false",
+            accessoryConfiguration.state.fanActiveAuto ? "true" : "false");
+        fanActiveCache = fanActiveNew;
+        HAPAccessoryServerRaiseEvent(accessoryConfiguration.server, &furnaceFanActiveCharacteristic, &furnaceFanService, &accessory);
+    } 
+
+    if (hrvActiveNew != hrvActiveCache) {
+        HAPLog(&logObject, "Setting HRV %s. Manual demand = %s. Mode = %s.", 
+            hrvActiveNew ? "on" : "off", 
+            accessoryConfiguration.state.hrvActive ? "true" : "false",
+            (accessoryConfiguration.state.hrvTargetState == kHAPCharacteristicValue_TargetFanState_Auto) ? "auto" : "manual");
+        hrvActiveCache = hrvActiveNew;
+        HAPAccessoryServerRaiseEvent(accessoryConfiguration.server, &hrvActiveCharacteristic, &hrvService, &accessory);
+    }
 }
+
+//----------------------------------------------------------------------------------------------------------------------
 
 HAP_RESULT_USE_CHECK
 HAPError HandleFurnaceFanActiveOnRead(
@@ -229,16 +270,28 @@ HAPError HandleFurnaceFanActiveOnWrite(
         void* _Nullable context HAP_UNUSED) {
     HAPLog(&logObject, "%s: %s", __func__, value ? "true" : "false");
 
-    bool oldValue = accessoryConfiguration.state.fanActiveManual;
-    bool oldEffectiveValue = oldValue || accessoryConfiguration.state.fanActiveAuto;
-    bool newEffectiveValue = value || accessoryConfiguration.state.fanActiveAuto;
-    if (oldValue != value) {
-        accessoryConfiguration.state.fanActiveManual = value;
-        SaveAccessoryState();
+    bool changed = false;
+    if (value) {
+        if (!accessoryConfiguration.state.fanActiveManual) {
+            changed = true;
+            accessoryConfiguration.state.fanActiveManual = true;
+        }
+    } else {
+        // value == false
+        bool effectiveValue = accessoryConfiguration.state.fanActiveManual
+            || accessoryConfiguration.state.fanActiveAuto;
+        if (effectiveValue) {
+            // Force fan off if it was auto-on. Force HRV off.
+            changed = true;
+            accessoryConfiguration.state.fanActiveManual = false;
+            accessoryConfiguration.state.fanActiveAuto = false;
+            accessoryConfiguration.state.hrvActive = false;
+        }
     }
-    if (oldEffectiveValue != newEffectiveValue) {
-        UpdateOutputs();
-        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+
+    if (changed) {
+        SaveAccessoryState();
+        UpdateOutputsAndNotify();
     }
 
     return kHAPError_None;
@@ -267,7 +320,7 @@ HAPError HandleFurnaceFanTargetFanStateOnWrite(
     if (accessoryConfiguration.state.fanTargetState != value) {
         accessoryConfiguration.state.fanTargetState = value;
         SaveAccessoryState();
-        UpdateOutputs();
+        UpdateOutputsAndNotify();
         HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
     }
 
@@ -334,6 +387,72 @@ HAPError HandleFurnaceFanDutyCycleOnWrite(
 
 //----------------------------------------------------------------------------------------------------------------------
 
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvActiveOnRead(
+        HAPAccessoryServerRef* server HAP_UNUSED,
+        const HAPUInt8CharacteristicReadRequest* request HAP_UNUSED,
+        uint8_t* value,
+        void* _Nullable context HAP_UNUSED) {
+    *value = accessoryConfiguration.state.hrvActive;
+    HAPLog(&logObject, "%s: %s", __func__, *value ? "true" : "false");
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvActiveOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context HAP_UNUSED) {
+    HAPLog(&logObject, "%s: %s", __func__, value ? "true" : "false");
+
+    bool oldValue = accessoryConfiguration.state.hrvActive;
+    if (oldValue != value) {
+        accessoryConfiguration.state.hrvActive = value;
+        if (value) {
+            // Automatically turn on fan
+            accessoryConfiguration.state.fanActiveManual = true;
+        }
+        SaveAccessoryState();
+        UpdateOutputsAndNotify();
+    }
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvTargetFanStateOnRead(
+        HAPAccessoryServerRef* server HAP_UNUSED,
+        const HAPUInt8CharacteristicReadRequest* request HAP_UNUSED,
+        uint8_t* value,
+        void* _Nullable context HAP_UNUSED) {
+    *value = accessoryConfiguration.state.hrvTargetState;
+    HAPLog(&logObject, "%s: %u", __func__, *value);
+
+    return kHAPError_None;
+}
+
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvTargetFanStateOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context HAP_UNUSED) {
+    HAPLog(&logObject, "%s: %u", __func__, value);
+
+    if (accessoryConfiguration.state.hrvTargetState != value) {
+        accessoryConfiguration.state.hrvTargetState = value;
+        SaveAccessoryState();
+        UpdateOutputsAndNotify();
+        HAPAccessoryServerRaiseEvent(server, request->characteristic, request->service, request->accessory);
+    }
+
+    return kHAPError_None;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
+
 
 void AccessoryNotification(
         const HAPAccessory* accessory,
@@ -359,8 +478,8 @@ void AppCreate(HAPAccessoryServerRef* server, HAPPlatformKeyValueStoreRef keyVal
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 0;
     gpio_config(&io_conf);
-    gpio_set_level(GPIO_OUTPUT_IO_0, 0);
-    gpio_set_level(GPIO_OUTPUT_IO_1, 0);
+    gpio_set_level(GPIO_OUTPUT_IO_FURNACE_FAN, 0);
+    gpio_set_level(GPIO_OUTPUT_IO_HRV, 0);
 
     // Set-up time server
     sntp_setoperatingmode(SNTP_OPMODE_POLL);

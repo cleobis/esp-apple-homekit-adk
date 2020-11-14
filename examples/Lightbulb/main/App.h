@@ -133,6 +133,47 @@ HAPError HandleFurnaceFanDutyCycleOnWrite(
         void* _Nullable context);
 
 //-------------------------------------------------------------------------------------------------------
+/**
+ * Handle read request to the 'Active' characteristic of the HRV service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvActiveOnRead(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicReadRequest* request,
+        uint8_t* value,
+        void* _Nullable context);
+
+/**
+ * Handle write request to the 'Active' characteristic of the HRV service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvActiveOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context);
+
+/**
+ * Handle read request to the 'Target Fan State' characteristic of the HRV service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvTargetFanStateOnRead(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicReadRequest* request,
+        uint8_t* value,
+        void* _Nullable context);
+
+/**
+ * Handle write request to the 'Target Fan State' characteristic of the HRV service.
+ */
+HAP_RESULT_USE_CHECK
+HAPError HandleHrvTargetFanStateOnWrite(
+        HAPAccessoryServerRef* server,
+        const HAPUInt8CharacteristicWriteRequest* request,
+        uint8_t value,
+        void* _Nullable context);
+
+//-------------------------------------------------------------------------------------------------------
 
 
 /**
