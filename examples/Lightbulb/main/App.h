@@ -51,6 +51,7 @@ HAPError HandleLightBulbOnWrite(
         const HAPBoolCharacteristicWriteRequest* request,
         bool value,
         void* _Nullable context);
+
 //-------------------------------------------------------------------------------------------------------
 /**
  * Handle read request to the 'Active' characteristic of the furnace fan service.
@@ -212,6 +213,12 @@ void RestorePlatformFactorySettings(void);
  * Returns pointer to accessory information
  */
 const HAPAccessory* AppGetAccessoryInfo();
+
+void AppInitialize(
+        HAPAccessoryServerOptions* hapAccessoryServerOptions,
+        HAPPlatform* hapPlatform,
+        HAPAccessoryServerCallbacks* hapAccessoryServerCallbacks);
+void AppDeinitialize();
 
 #if __has_feature(nullability)
 #pragma clang assume_nonnull end

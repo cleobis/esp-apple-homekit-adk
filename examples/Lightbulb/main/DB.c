@@ -404,96 +404,6 @@ const HAPService pairingService = {
 };
 
 //----------------------------------------------------------------------------------------------------------------------
-
-/**
- * The 'Service Signature' characteristic of the Light Bulb service.
- */
-static const HAPDataCharacteristic lightBulbServiceSignatureCharacteristic = {
-    .format = kHAPCharacteristicFormat_Data,
-    .iid = kIID_LightBulbServiceSignature,
-    .characteristicType = &kHAPCharacteristicType_ServiceSignature,
-    .debugDescription = kHAPCharacteristicDebugDescription_ServiceSignature,
-    .manufacturerDescription = NULL,
-    .properties = { .readable = true,
-                    .writable = false,
-                    .supportsEventNotification = false,
-                    .hidden = false,
-                    .requiresTimedWrite = false,
-                    .supportsAuthorizationData = false,
-                    .ip = { .controlPoint = true },
-                    .ble = { .supportsBroadcastNotification = false,
-                             .supportsDisconnectedNotification = false,
-                             .readableWithoutSecurity = false,
-                             .writableWithoutSecurity = false } },
-    .constraints = { .maxLength = 2097152 },
-    .callbacks = { .handleRead = HAPHandleServiceSignatureRead, .handleWrite = NULL }
-};
-
-/**
- * The 'Name' characteristic of the Light Bulb service.
- */
-static const HAPStringCharacteristic lightBulbNameCharacteristic = {
-    .format = kHAPCharacteristicFormat_String,
-    .iid = kIID_LightBulbName,
-    .characteristicType = &kHAPCharacteristicType_Name,
-    .debugDescription = kHAPCharacteristicDebugDescription_Name,
-    .manufacturerDescription = NULL,
-    .properties = { .readable = true,
-                    .writable = false,
-                    .supportsEventNotification = false,
-                    .hidden = false,
-                    .requiresTimedWrite = false,
-                    .supportsAuthorizationData = false,
-                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
-                    .ble = { .supportsBroadcastNotification = false,
-                             .supportsDisconnectedNotification = false,
-                             .readableWithoutSecurity = false,
-                             .writableWithoutSecurity = false } },
-    .constraints = { .maxLength = 64 },
-    .callbacks = { .handleRead = HAPHandleNameRead, .handleWrite = NULL }
-};
-
-/**
- * The 'On' characteristic of the Light Bulb service.
- */
-const HAPBoolCharacteristic lightBulbOnCharacteristic = {
-    .format = kHAPCharacteristicFormat_Bool,
-    .iid = kIID_LightBulbOn,
-    .characteristicType = &kHAPCharacteristicType_On,
-    .debugDescription = kHAPCharacteristicDebugDescription_On,
-    .manufacturerDescription = NULL,
-    .properties = { .readable = true,
-                    .writable = true,
-                    .supportsEventNotification = true,
-                    .hidden = false,
-                    .requiresTimedWrite = false,
-                    .supportsAuthorizationData = false,
-                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
-                    .ble = { .supportsBroadcastNotification = true,
-                             .supportsDisconnectedNotification = true,
-                             .readableWithoutSecurity = false,
-                             .writableWithoutSecurity = false } },
-    .callbacks = { .handleRead = HandleLightBulbOnRead, .handleWrite = HandleLightBulbOnWrite }
-};
-
-/**
- * The Light Bulb service that contains the 'On' characteristic.
- */
-const HAPService lightBulbService = {
-    .iid = kIID_LightBulb,
-    .serviceType = &kHAPServiceType_LightBulb,
-    .debugDescription = kHAPServiceDebugDescription_LightBulb,
-    .name = "Light Bulb",
-    .properties = { .primaryService = false, .hidden = false, .ble = { .supportsConfiguration = false } },
-    .linkedServices = NULL,
-    .characteristics = (const HAPCharacteristic* const[]) { &lightBulbServiceSignatureCharacteristic,
-                                                            &lightBulbNameCharacteristic,
-                                                            &lightBulbOnCharacteristic,
-                                                            &lightBulbCountdownCharacteristic,
-                                                            NULL }
-};
-
-//----------------------------------------------------------------------------------------------------------------------
 /* The fan service / characteristics
  * 
  * Fan service
@@ -634,7 +544,7 @@ static const HAPUInt8Characteristic furnaceFanTimeoutCharacteristic = {
                              .readableWithoutSecurity = false,
                              .writableWithoutSecurity = false } },
     .constraints = {
-        .minimumValue = 0,
+        .minimumValue = 1,
         .maximumValue = 180,
         .stepValue = 1,
     },

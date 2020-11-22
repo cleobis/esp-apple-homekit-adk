@@ -53,16 +53,6 @@ extern const HAPService hapProtocolInformationService;
 extern const HAPService pairingService;
 
 /**
- * Light Bulb service.
- */
-extern const HAPService lightBulbService;
-
-/**
- * The 'On' characteristic of the Light Bulb service.
- */
-extern const HAPBoolCharacteristic lightBulbOnCharacteristic;
-
-/**
  * Furnace fan service.
  */
 extern const HAPService furnaceFanService;
