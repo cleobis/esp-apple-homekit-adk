@@ -1,3 +1,33 @@
+# My IoT Devices using the ESP Apple HomeKit ADK
+
+This is a copy of the Espressif [ESP AppleHomeKit ADK](https://github.com/espressif/esp-apple-homekit-adk) that I used to develop a device. Original documentation for the ADK is below. My thermostat device is in examples/Thermostat.
+
+## Quick Reference
+Refer to the ADK instructions in the Compile and Flash section below. Once you have it set-up the first time, to update the build, preserving the existing HomeKit pairing information:
+* Load the IDF tools at the command line: `source esp-idf/export.sh`
+* Build: `idf.py build`
+* Build and load onto the hardware: `idf.py flash`
+* View console output: `idf.py monitor`. Press Ctrl+] to exit.
+
+## Example/Thermostat
+This creates a HomeKit device with two Fan services. The first Fan service represents the furnace fan. It has characteristics:
+* Service Signature Characteristic.
+* Name characteristic.
+* Active characteristic which represents if the fan is on or off. If the furnace fan is turned off the HRV will be automatically turned off too.
+* Target fan state characteristic (man/auto). If set to auto, the fan will cycle on every hour. 
+* Auto-off timeout custom characteristic. This is a number between 1 and 180 indicating the number of minutes the fan should stay on after it is manually activated by the user. This characteristic doesn't appear in the Home app since it is non-standard but does appear in more powerful 3rd party HomeKit apps.
+* Duty cycle custom characteristic. This is a number between 0 and 100% indicating what fraction of the hour the fan should be on if the target fan state is set to auto. This characteristic doesn't appear in the Home app since it is non-standard but does appear in more powerful 3rd party HomeKit apps.
+
+The second Fan service representing the HRV. It has characteristics:
+* Service Signature Characteristic.
+* Name characteristic.
+* Active characteristic which represents if the HRV is on or off. When enabled, it automatically enables the furnace fan too. 
+* Target fan state characteristic (man/auto). If set to auto, the HRV will turn on whenever the furnace fan turns on.
+
+The outputs of the ESP32 are connected to hardware relays to interface with the thermostat wiring.
+
+---
+
 # ESP Apple HomeKit ADK
 
 [HomeKit](https://developer.apple.com/homekit/) is a framework developed by Apple for communicating with and controlling connected accessories in a user’s home using iOS devices. This project is a port of Apple's Open Source [HomeKit ADK](https://github.com/apple/HomeKitADK) for ESP32 and ESP32S2. This can be used by any developer to prototype non-commercial smart home accessories.
