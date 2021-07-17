@@ -41,6 +41,20 @@
 #define kIID_LightBulbName             ((uint64_t) 0x0032)
 #define kIID_LightBulbOn               ((uint64_t) 0x0033)
 
+#define kIID_FurnaceFan                  ((uint64_t) 0x0040)
+#define kIID_FurnaceFanServiceSignature  ((uint64_t) 0x0041)
+#define kIID_FurnaceFanName              ((uint64_t) 0x0042)
+#define kIID_FurnaceFanActive            ((uint64_t) 0x0043)
+#define kIID_FurnaceFanTargetFanState    ((uint64_t) 0x0044)
+#define kIID_FurnaceFanTimeout           ((uint64_t) 0x0045)
+#define kIID_FurnaceFanDutyCycle         ((uint64_t) 0x0046)
+
+#define kIID_Hrv                  ((uint64_t) 0x0050)
+#define kIID_HrvServiceSignature  ((uint64_t) 0x0051)
+#define kIID_HrvName              ((uint64_t) 0x0052)
+#define kIID_HrvActive            ((uint64_t) 0x0053)
+#define kIID_HrvTargetFanState    ((uint64_t) 0x0054)
+
 HAP_STATIC_ASSERT(kAttributeCount == 9 + 3 + 5 + 4, AttributeCount_mismatch);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -390,13 +404,23 @@ const HAPService pairingService = {
 };
 
 //----------------------------------------------------------------------------------------------------------------------
+/* The fan service / characteristics
+ * 
+ * Fan service
+ *  - Service Signature Characteristic - is this required? ****
+ *  - Name characteristic
+ *  - Active characteristic - active/inactive
+ *  - Target fan state characteristic - man/auto
+ *  - Auto-off timeout custom characteristic
+ *  - Duty cycle custom characteristic
+ */
 
 /**
- * The 'Service Signature' characteristic of the Light Bulb service.
+ * The 'Service Signature' characteristic of the furnace fan service.
  */
-static const HAPDataCharacteristic lightBulbServiceSignatureCharacteristic = {
+static const HAPDataCharacteristic furnaceFanServiceSignatureCharacteristic = {
     .format = kHAPCharacteristicFormat_Data,
-    .iid = kIID_LightBulbServiceSignature,
+    .iid = kIID_FurnaceFanServiceSignature,
     .characteristicType = &kHAPCharacteristicType_ServiceSignature,
     .debugDescription = kHAPCharacteristicDebugDescription_ServiceSignature,
     .manufacturerDescription = NULL,
@@ -416,14 +440,14 @@ static const HAPDataCharacteristic lightBulbServiceSignatureCharacteristic = {
 };
 
 /**
- * The 'Name' characteristic of the Light Bulb service.
+ * The 'Name' characteristic of the furnace fan service.
  */
-static const HAPStringCharacteristic lightBulbNameCharacteristic = {
+static const HAPStringCharacteristic furnaceFanNameCharacteristic = {
     .format = kHAPCharacteristicFormat_String,
-    .iid = kIID_LightBulbName,
+    .iid = kIID_FurnaceFanName,
     .characteristicType = &kHAPCharacteristicType_Name,
     .debugDescription = kHAPCharacteristicDebugDescription_Name,
-    .manufacturerDescription = NULL,
+    .manufacturerDescription = "Furnace fan",
     .properties = { .readable = true,
                     .writable = false,
                     .supportsEventNotification = false,
@@ -440,14 +464,14 @@ static const HAPStringCharacteristic lightBulbNameCharacteristic = {
 };
 
 /**
- * The 'On' characteristic of the Light Bulb service.
+ * The 'Active' charactristic of the furnace fan service.
  */
-const HAPBoolCharacteristic lightBulbOnCharacteristic = {
-    .format = kHAPCharacteristicFormat_Bool,
-    .iid = kIID_LightBulbOn,
-    .characteristicType = &kHAPCharacteristicType_On,
-    .debugDescription = kHAPCharacteristicDebugDescription_On,
-    .manufacturerDescription = NULL,
+const HAPUInt8Characteristic furnaceFanActiveCharacteristic = {
+    .format = kHAPCharacteristicFormat_UInt8,
+    .iid = kIID_FurnaceFanActive, 
+    .characteristicType = &kHAPCharacteristicType_Active,
+    .debugDescription = kHAPCharacteristicDebugDescription_Active,
+    .manufacturerDescription = "Furnace fan",
     .properties = { .readable = true,
                     .writable = true,
                     .supportsEventNotification = true,
@@ -459,21 +483,250 @@ const HAPBoolCharacteristic lightBulbOnCharacteristic = {
                              .supportsDisconnectedNotification = true,
                              .readableWithoutSecurity = false,
                              .writableWithoutSecurity = false } },
-    .callbacks = { .handleRead = HandleLightBulbOnRead, .handleWrite = HandleLightBulbOnWrite }
+    .constraints = {
+        .minimumValue = 0,
+        .maximumValue = 1,
+        .stepValue = 1,
+    },
+    .callbacks = { .handleRead = HandleFurnaceFanActiveOnRead, .handleWrite = HandleFurnaceFanActiveOnWrite }
 };
 
 /**
- * The Light Bulb service that contains the 'On' characteristic.
+ * The 'TargetFanState' charactristic of the furnace fan service.
  */
-const HAPService lightBulbService = {
-    .iid = kIID_LightBulb,
-    .serviceType = &kHAPServiceType_LightBulb,
-    .debugDescription = kHAPServiceDebugDescription_LightBulb,
-    .name = "Light Bulb",
-    .properties = { .primaryService = true, .hidden = false, .ble = { .supportsConfiguration = false } },
+static const HAPUInt8Characteristic furnaceFanTargetFanStateCharacteristic = {
+    .format = kHAPCharacteristicFormat_UInt8,
+    .iid = kIID_FurnaceFanTargetFanState, 
+    .characteristicType = &kHAPCharacteristicType_TargetFanState,
+    .debugDescription = kHAPCharacteristicDebugDescription_TargetFanState,
+    .manufacturerDescription = "Furnace fan mode",
+    .properties = { .readable = true,
+                    .writable = true,
+                    .supportsEventNotification = true,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
+                    .ble = { .supportsBroadcastNotification = true,
+                             .supportsDisconnectedNotification = true,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .constraints = {
+        .minimumValue = 0,
+        .maximumValue = 2,
+        .stepValue = 1,
+    },
+    .callbacks = { .handleRead = HandleFurnaceFanTargetFanStateOnRead, .handleWrite = HandleFurnaceFanTargetFanStateOnWrite }
+};
+
+
+const HAPUUID kHAPCustomCharacteristicType_Timeout = {
+        { 0xD7, 0x25, 0xD9, 0x1B, 0x30, 0x55, 0x84, 0x9A, 0x9D, 0x48, 0xCC, 0x0A, 0x00, 0x00, 0x00, 0x10}
+    } ;
+/**
+ * The 'Timeout' custom charactristic of the furnace fan service.
+ */
+static const HAPUInt8Characteristic furnaceFanTimeoutCharacteristic = {
+    .format = kHAPCharacteristicFormat_UInt8,
+    .iid = kIID_FurnaceFanTimeout,
+    .characteristicType = &kHAPCustomCharacteristicType_Timeout,
+    .debugDescription = "fan.timeout",
+    .manufacturerDescription = "Fan timeout (min)",
+    .properties = { .readable = true,
+                    .writable = true,
+                    .supportsEventNotification = true,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
+                    .ble = { .supportsBroadcastNotification = true,
+                             .supportsDisconnectedNotification = true,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .constraints = {
+        .minimumValue = 1,
+        .maximumValue = 180,
+        .stepValue = 1,
+    },
+    .callbacks = { .handleRead = HandleFurnaceFanTimeoutOnRead, .handleWrite = HandleFurnaceFanTimeoutOnWrite }
+} ;
+
+const HAPUUID kHAPCustomCharacteristicType_DutyCycle = {
+        { 0xD7, 0x25, 0xD9, 0x1B, 0x30, 0x55, 0x84, 0x9A, 0x9D, 0x48, 0xCC, 0x0A, 0x00, 0x00, 0x00, 0x11}
+    } ;
+
+/**
+ * The 'Duty Cycle' custom charactristic of the furnace fan service.
+ */
+static const HAPUInt8Characteristic furnaceFanDutyCycleCharacteristic = {
+    .format = kHAPCharacteristicFormat_UInt8,
+    .iid = kIID_FurnaceFanDutyCycle,
+    .characteristicType = &kHAPCustomCharacteristicType_DutyCycle,
+    .debugDescription = "fan.duty.cycle",
+    .manufacturerDescription = "Fan duty cycle",
+    .properties = { .readable = true,
+                    .writable = true,
+                    .supportsEventNotification = true,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
+                    .ble = { .supportsBroadcastNotification = true,
+                             .supportsDisconnectedNotification = true,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .units = kHAPCharacteristicUnits_Percentage,
+    .constraints = {
+        .minimumValue = 0,
+        .maximumValue = 100,
+        .stepValue = 1,
+    },
+    .callbacks = { .handleRead = HandleFurnaceFanDutyCycleOnRead, .handleWrite = HandleFurnaceFanDutyCycleOnWrite }
+} ;
+
+const HAPService furnaceFanService = {
+    .iid = kIID_FurnaceFan,
+    .serviceType = &kHAPServiceType_Fan,
+    .debugDescription = "Furnace fan",
+    .name = "Furnace fan",
+    .properties = {.primaryService = true, .hidden = false, .ble = {.supportsConfiguration = false } },
     .linkedServices = NULL,
-    .characteristics = (const HAPCharacteristic* const[]) { &lightBulbServiceSignatureCharacteristic,
-                                                            &lightBulbNameCharacteristic,
-                                                            &lightBulbOnCharacteristic,
-                                                            NULL }
+    .characteristics = (const HAPCharacteristic* const[]) {
+        &furnaceFanServiceSignatureCharacteristic,
+        &furnaceFanNameCharacteristic,
+        &furnaceFanActiveCharacteristic,
+        &furnaceFanTargetFanStateCharacteristic,
+        &furnaceFanTimeoutCharacteristic,
+        &furnaceFanDutyCycleCharacteristic,
+        NULL }
+};
+
+
+//----------------------------------------------------------------------------------------------------------------------
+/* The HRV service / characteristics
+ * 
+ * HRV  service
+ *  - Service Signature Characteristic - is this required? ****
+ *  - Name characteristic
+ *  - Active characteristic - active/inactive
+ *  - Target fan state characteristic - man/auto
+ */
+
+/**
+ * The 'Service Signature' characteristic of the HRV fan service.
+ */
+static const HAPDataCharacteristic hrvServiceSignatureCharacteristic = {
+    .format = kHAPCharacteristicFormat_Data,
+    .iid = kIID_HrvServiceSignature,
+    .characteristicType = &kHAPCharacteristicType_ServiceSignature,
+    .debugDescription = kHAPCharacteristicDebugDescription_ServiceSignature,
+    .manufacturerDescription = NULL,
+    .properties = { .readable = true,
+                    .writable = false,
+                    .supportsEventNotification = false,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = true },
+                    .ble = { .supportsBroadcastNotification = false,
+                             .supportsDisconnectedNotification = false,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .constraints = { .maxLength = 2097152 },
+    .callbacks = { .handleRead = HAPHandleServiceSignatureRead, .handleWrite = NULL }
+};
+
+/**
+ * The 'Name' characteristic of the furnace HRV service.
+ */
+static const HAPStringCharacteristic hrvNameCharacteristic = {
+    .format = kHAPCharacteristicFormat_String,
+    .iid = kIID_HrvName,
+    .characteristicType = &kHAPCharacteristicType_Name,
+    .debugDescription = kHAPCharacteristicDebugDescription_Name,
+    .manufacturerDescription = "HRV",
+    .properties = { .readable = true,
+                    .writable = false,
+                    .supportsEventNotification = false,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
+                    .ble = { .supportsBroadcastNotification = false,
+                             .supportsDisconnectedNotification = false,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .constraints = { .maxLength = 64 },
+    .callbacks = { .handleRead = HAPHandleNameRead, .handleWrite = NULL }
+};
+
+/**
+ * The 'Active' charactristic of the HRV service.
+ */
+const HAPUInt8Characteristic hrvActiveCharacteristic = {
+    .format = kHAPCharacteristicFormat_UInt8,
+    .iid = kIID_HrvActive, 
+    .characteristicType = &kHAPCharacteristicType_Active,
+    .debugDescription = kHAPCharacteristicDebugDescription_Active,
+    .manufacturerDescription = "HRV fan",
+    .properties = { .readable = true,
+                    .writable = true,
+                    .supportsEventNotification = true,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
+                    .ble = { .supportsBroadcastNotification = true,
+                             .supportsDisconnectedNotification = true,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .constraints = {
+        .minimumValue = 0,
+        .maximumValue = 1,
+        .stepValue = 1,
+    },
+    .callbacks = { .handleRead = HandleHrvActiveOnRead, .handleWrite = HandleHrvActiveOnWrite }
+};
+
+/**
+ * The 'TargetFanState' charactristic of the HRV service.
+ */
+static const HAPUInt8Characteristic hrvTargetFanStateCharacteristic = {
+    .format = kHAPCharacteristicFormat_UInt8,
+    .iid = kIID_HrvTargetFanState, 
+    .characteristicType = &kHAPCharacteristicType_TargetFanState,
+    .debugDescription = kHAPCharacteristicDebugDescription_TargetFanState,
+    .manufacturerDescription = "HRV fan mode",
+    .properties = { .readable = true,
+                    .writable = true,
+                    .supportsEventNotification = true,
+                    .hidden = false,
+                    .requiresTimedWrite = false,
+                    .supportsAuthorizationData = false,
+                    .ip = { .controlPoint = false, .supportsWriteResponse = false },
+                    .ble = { .supportsBroadcastNotification = true,
+                             .supportsDisconnectedNotification = true,
+                             .readableWithoutSecurity = false,
+                             .writableWithoutSecurity = false } },
+    .constraints = {
+        .minimumValue = 0,
+        .maximumValue = 2,
+        .stepValue = 1,
+    },
+    .callbacks = { .handleRead = HandleHrvTargetFanStateOnRead, .handleWrite = HandleHrvTargetFanStateOnWrite }
+};
+
+const HAPService hrvService = {
+    .iid = kIID_Hrv,
+    .serviceType = &kHAPServiceType_Fan,
+    .debugDescription = "HRV",
+    .name = "HRV",
+    .properties = {.primaryService = false, .hidden = false, .ble = {.supportsConfiguration = false } },
+    .linkedServices = NULL,
+    .characteristics = (const HAPCharacteristic* const[]) {
+        &hrvServiceSignatureCharacteristic,
+        &hrvNameCharacteristic,
+        &hrvActiveCharacteristic,
+        &hrvTargetFanStateCharacteristic,
+        NULL }
 };
