@@ -83,6 +83,20 @@ typedef struct {
 
 static AccessoryConfiguration accessoryConfiguration;
 
+inline bool DutyCycleEnabledEffective() {
+    return accessoryConfiguration.state.fanActiveAuto
+        && (accessoryConfiguration.state.fanTargetState == kHAPCharacteristicValue_TargetFanState_Auto);
+}
+
+inline bool FanActiveEffective() {
+    return accessoryConfiguration.state.fanActiveManual || DutyCycleEnabledEffective();
+}
+
+inline bool HrvActiveEffective() {
+    return accessoryConfiguration.state.hrvActive
+    || (DutyCycleEnabledEffective() && (accessoryConfiguration.state.hrvTargetState == kHAPCharacteristicValue_TargetFanState_Auto));
+}
+
 //----------------------------------------------------------------------------------------------------------------------
 
 class Timer {
@@ -111,6 +125,7 @@ class Timer {
         stop();
         if (timer != NULL_TIMER){
             timer = NULL_TIMER;
+            // No-op with HAPPlatformTimer
         }
     }
 
@@ -230,8 +245,8 @@ class DutyCycleTimer : Timer {
 
     void start_next() {
         if (fanActive) {
-            // timeout is based on duty cycle.
-            // Convert duty cycle in % of hour to microseconds
+            // Timeout is based on duty cycle.
+            // Convert duty cycle frpm % of hour.
             timeout_ticks = accessoryConfiguration.state.fanDutyCycle * TICKS_PER_MIN * 60 / 100;
         } else {
             // timeout determined by minutes
@@ -375,18 +390,6 @@ HAPError IdentifyAccessory(
 }
 
 //----------------------------------------------------------------------------------------------------------------------
-
-inline bool DutyCycleEnabledEffective() {
-    return accessoryConfiguration.state.fanActiveAuto
-        && (accessoryConfiguration.state.fanTargetState == kHAPCharacteristicValue_TargetFanState_Auto);
-}
-inline bool FanActiveEffective() {
-    return accessoryConfiguration.state.fanActiveManual || DutyCycleEnabledEffective();
-}
-inline bool HrvActiveEffective() {
-    return accessoryConfiguration.state.hrvActive
-    || (DutyCycleEnabledEffective() && (accessoryConfiguration.state.hrvTargetState == kHAPCharacteristicValue_TargetFanState_Auto));
-}
 
 void UpdateOutputsAndNotify() {
     static bool fanActiveCache;
